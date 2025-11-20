@@ -106,6 +106,19 @@
             color: #ffc107;
         }
         
+        .btn-delete {
+            background: rgba(220, 53, 69, 0.1);
+            border: 2px solid rgba(220, 53, 69, 0.5);
+            color: #dc3545;
+        }
+        
+        .btn-delete:hover {
+            background: rgba(220, 53, 69, 0.2);
+            border-color: rgba(220, 53, 69, 0.8);
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.4);
+            color: #dc3545;
+        }
+        
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.3);
             border-top: 4px solid #f094f8;
@@ -126,7 +139,7 @@
             padding-left: 12px;
         }
         
-        .create-group-modal {
+        .create-group-modal, .password-modal {
             display: none;
             position: fixed;
             top: 0;
@@ -139,7 +152,7 @@
             align-items: center;
         }
         
-        .create-group-content {
+        .create-group-content, .password-content {
             background: linear-gradient(135deg, #1a0f24 0%, #2d1b69 100%);
             border: 1px solid rgba(240, 148, 248, 0.3);
             box-shadow: 0 0 30px rgba(240, 148, 248, 0.5);
@@ -343,6 +356,29 @@
         </div>
     </div>
     
+    <!-- Password Modal -->
+    <div id="passwordModal" class="password-modal">
+        <div class="password-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold gradient-text">CONTRASEÑA REQUERIDA</h2>
+                <button id="closePasswordModal" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="passwordInput" class="block text-lg mb-2">Ingresa la contraseña para eliminar el grupo</label>
+                    <input type="password" id="passwordInput" placeholder="Contraseña" 
+                           class="w-full px-4 py-3 rounded-lg bg-black bg-opacity-30 border border-gray-600 text-white focus:border-purple-500 focus:outline-none">
+                </div>
+                
+                <div class="flex space-x-4 pt-2">
+                    <button id="confirmPassword" class="flex-1 py-3 rounded-lg text-lg font-bold btn-primary">CONFIRMAR</button>
+                    <button id="cancelPassword" class="flex-1 py-3 rounded-lg text-lg font-bold btn-secondary">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Processing Overlay -->
     <div id="processingOverlay" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay hidden">
         <div class="text-center">
@@ -357,6 +393,7 @@
         let groups = JSON.parse(localStorage.getItem('studentGroups')) || {};
         let currentImageFile = null;
         let selectedGroupCode = '';
+        let groupToDelete = '';
 
         // Elementos DOM
         const groupCodeInput = document.getElementById('groupCode');
@@ -377,6 +414,11 @@
         const closeCreateGroupModal = document.getElementById('closeCreateGroupModal');
         const confirmCreateGroup = document.getElementById('confirmCreateGroup');
         const cancelCreateGroup = document.getElementById('cancelCreateGroup');
+        const passwordModal = document.getElementById('passwordModal');
+        const closePasswordModal = document.getElementById('closePasswordModal');
+        const passwordInput = document.getElementById('passwordInput');
+        const confirmPassword = document.getElementById('confirmPassword');
+        const cancelPassword = document.getElementById('cancelPassword');
         const processingOverlay = document.getElementById('processingOverlay');
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
@@ -387,6 +429,9 @@
         const tryMultipleMethods = document.getElementById('try-multiple-methods');
         const useTableDetection = document.getElementById('use-table-detection');
         const usePatternMatching = document.getElementById('use-pattern-matching');
+
+        // Contraseña para eliminar grupos
+        const DELETE_PASSWORD = "daniel890.66";
 
         // Inicializar la aplicación
         function init() {
@@ -439,7 +484,7 @@
             fileInput.addEventListener('change', handleFileSelect);
             
             // Drag and drop
-            ['dragenter', 'dragoover', 'dragleave', 'drop'].forEach(eventName => {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 uploadArea.addEventListener(eventName, preventDefaults, false);
             });
             
@@ -457,9 +502,14 @@
             closeModal.addEventListener('click', () => studentModal.classList.add('hidden'));
             closeCreateGroupModal.addEventListener('click', () => createGroupModal.style.display = 'none');
             cancelCreateGroup.addEventListener('click', () => createGroupModal.style.display = 'none');
+            closePasswordModal.addEventListener('click', () => passwordModal.style.display = 'none');
+            cancelPassword.addEventListener('click', () => passwordModal.style.display = 'none');
             
             // Confirmar creación de grupo
             confirmCreateGroup.addEventListener('click', createGroup);
+            
+            // Confirmar contraseña
+            confirmPassword.addEventListener('click', verifyPassword);
             
             // Cerrar modal al hacer clic fuera
             studentModal.addEventListener('click', function(e) {
@@ -474,6 +524,12 @@
                 }
             });
             
+            passwordModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                }
+            });
+            
             // Permitir Enter para crear grupo
             groupCodeInput.addEventListener('keyup', function(e) {
                 if (e.key === 'Enter') createGroup();
@@ -481,6 +537,11 @@
             
             groupTitleInput.addEventListener('keyup', function(e) {
                 if (e.key === 'Enter') createGroup();
+            });
+            
+            // Permitir Enter para contraseña
+            passwordInput.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') verifyPassword();
             });
         }
 
@@ -526,6 +587,32 @@
             groupTitleInput.value = '';
             createGroupModal.style.display = 'flex';
             groupCodeInput.focus();
+        }
+
+        // Mostrar modal de contraseña
+        function showPasswordModal(groupCode) {
+            groupToDelete = groupCode;
+            passwordInput.value = '';
+            passwordModal.style.display = 'flex';
+            passwordInput.focus();
+        }
+
+        // Verificar contraseña
+        function verifyPassword() {
+            if (passwordInput.value === DELETE_PASSWORD) {
+                // Contraseña correcta - eliminar grupo
+                delete groups[groupToDelete];
+                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                renderGroups();
+                updateScannerOptions();
+                passwordModal.style.display = 'none';
+                alert(`Grupo "${groupToDelete}" eliminado exitosamente.`);
+            } else {
+                // Contraseña incorrecta
+                alert('❌ Contraseña incorrecta. No se puede eliminar el grupo.');
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
         }
 
         // Crear un nuevo grupo
@@ -848,8 +935,9 @@
                             <h3 class="text-2xl font-bold gradient-text mb-2">${group.title}</h3>
                             <p class="text-gray-300">Código: ${code}</p>
                             <p class="text-gray-400 mt-2">${studentCount} estudiante${studentCount !== 1 ? 's' : ''}</p>
-                            <div class="mt-3">
+                            <div class="mt-3 flex justify-center space-x-2">
                                 <button class="text-xs px-3 py-1 rounded btn-edit" onclick="event.stopPropagation(); editGroup('${code}')">Editar</button>
+                                <button class="text-xs px-3 py-1 rounded btn-delete" onclick="event.stopPropagation(); requestDeleteGroup('${code}')">Eliminar</button>
                             </div>
                         </div>
                     </div>
@@ -945,9 +1033,18 @@
             }
         }
 
+        // Solicitar eliminación de grupo (con contraseña)
+        function requestDeleteGroup(code) {
+            const group = groups[code];
+            if (confirm(`¿Estás seguro de que quieres eliminar el grupo "${group.title}"? Se requerirá contraseña.`)) {
+                showPasswordModal(code);
+            }
+        }
+
         // Hacer las funciones globales para que funcionen en los onclick
         window.showGroupStudents = showGroupStudents;
         window.editGroup = editGroup;
+        window.requestDeleteGroup = requestDeleteGroup;
 
         // Inicializar la aplicación cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', init);
