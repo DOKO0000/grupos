@@ -6,6 +6,8 @@
     <title>Gestión de Grupos Escolares</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&family=Teko:wght@400;700&display=swap" rel="stylesheet">
@@ -215,6 +217,26 @@
             font-size: 1.1rem;
             font-weight: bold;
         }
+        
+        .firebase-status {
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        .firebase-connected {
+            background-color: rgba(40, 167, 69, 0.2);
+            border: 1px solid rgba(40, 167, 69, 0.5);
+            color: #28a745;
+        }
+        
+        .firebase-disconnected {
+            background-color: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.5);
+            color: #dc3545;
+        }
     </style>
 </head>
 <body class="min-h-screen p-4">
@@ -223,6 +245,9 @@
         <header class="text-center mb-12">
             <h1 class="text-5xl md:text-7xl font-bold mb-4 gradient-text">GESTIÓN DE GRUPOS</h1>
             <p class="text-xl md:text-2xl text-gray-300">Organiza y visualiza estudiantes por grupos</p>
+            <div id="firebaseStatus" class="firebase-status firebase-disconnected">
+                🔄 Conectando a Firebase...
+            </div>
         </header>
         
         <!-- Main Content -->
@@ -389,8 +414,17 @@
     </div>
 
     <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            databaseURL: "https://clav-2da48-default-rtdb.firebaseio.com/"
+        };
+        
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
         // Estado de la aplicación
-        let groups = JSON.parse(localStorage.getItem('studentGroups')) || {};
+        let groups = {};
         let currentImageFile = null;
         let selectedGroupCode = '';
         let groupToDelete = '';
@@ -423,6 +457,7 @@
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const progressStatus = document.getElementById('progress-status');
+        const firebaseStatus = document.getElementById('firebaseStatus');
 
         // Opciones de OCR
         const preprocessImg = document.getElementById('preprocess-img');
@@ -435,36 +470,57 @@
 
         // Inicializar la aplicación
         function init() {
-            renderGroups();
-            updateScannerOptions();
             setupEventListeners();
+            loadGroupsFromFirebase();
             
-            // Cargar datos de ejemplo si no hay grupos
-            if (Object.keys(groups).length === 0) {
-                loadSampleGroups();
-            }
+            // Verificar estado de conexión de Firebase
+            const connectedRef = firebase.database().ref(".info/connected");
+            connectedRef.on("value", function(snap) {
+                if (snap.val() === true) {
+                    firebaseStatus.textContent = "✅ Conectado a Firebase";
+                    firebaseStatus.className = "firebase-status firebase-connected";
+                } else {
+                    firebaseStatus.textContent = "❌ Desconectado de Firebase";
+                    firebaseStatus.className = "firebase-status firebase-disconnected";
+                }
+            });
         }
 
-        // Cargar grupos de ejemplo
-        function loadSampleGroups() {
-            groups = {
-                '506': {
-                    title: '506 - 5to Semestre',
-                    students: []
-                },
-                '401': {
-                    title: '401 - 4to Semestre',
-                    students: []
-                },
-                '302': {
-                    title: '302 - 3er Semestre',
-                    students: []
-                }
-            };
+        // Cargar grupos desde Firebase
+        function loadGroupsFromFirebase() {
+            firebaseStatus.textContent = "🔄 Cargando grupos desde Firebase...";
             
-            localStorage.setItem('studentGroups', JSON.stringify(groups));
-            renderGroups();
-            updateScannerOptions();
+            const groupsRef = database.ref('grupos');
+            groupsRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                groups = data || {};
+                renderGroups();
+                updateScannerOptions();
+                
+                if (Object.keys(groups).length === 0) {
+                    firebaseStatus.textContent = "✅ Conectado a Firebase - No hay grupos";
+                } else {
+                    firebaseStatus.textContent = `✅ Conectado a Firebase - ${Object.keys(groups).length} grupos cargados`;
+                }
+                firebaseStatus.className = "firebase-status firebase-connected";
+            }, (error) => {
+                console.error("Error cargando grupos:", error);
+                firebaseStatus.textContent = "❌ Error cargando grupos de Firebase";
+                firebaseStatus.className = "firebase-status firebase-disconnected";
+            });
+        }
+
+        // Guardar grupos en Firebase
+        function saveGroupsToFirebase() {
+            const groupsRef = database.ref('grupos');
+            groupsRef.set(groups)
+                .then(() => {
+                    console.log("Grupos guardados en Firebase");
+                })
+                .catch((error) => {
+                    console.error("Error guardando grupos:", error);
+                    alert("Error al guardar en Firebase. Los datos se mantendrán localmente.");
+                });
         }
 
         // Configurar event listeners
@@ -602,7 +658,7 @@
             if (passwordInput.value === DELETE_PASSWORD) {
                 // Contraseña correcta - eliminar grupo
                 delete groups[groupToDelete];
-                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                saveGroupsToFirebase();
                 renderGroups();
                 updateScannerOptions();
                 passwordModal.style.display = 'none';
@@ -638,11 +694,13 @@
             // Crear grupo
             groups[code] = {
                 title: title,
-                students: []
+                students: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             };
             
-            // Guardar en localStorage
-            localStorage.setItem('studentGroups', JSON.stringify(groups));
+            // Guardar en Firebase
+            saveGroupsToFirebase();
             
             // Actualizar UI
             renderGroups();
@@ -691,9 +749,10 @@
                 
                 // Agregar estudiantes al grupo
                 groups[selectedGroupCode].students = students;
+                groups[selectedGroupCode].updatedAt = new Date().toISOString();
                 
-                // Guardar en localStorage
-                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                // Guardar en Firebase
+                saveGroupsToFirebase();
                 
                 // Actualizar UI
                 renderGroups();
@@ -928,6 +987,7 @@
             groupsContainer.innerHTML = groupCodes.map(code => {
                 const group = groups[code];
                 const studentCount = group.students.length;
+                const createdDate = group.createdAt ? new Date(group.createdAt).toLocaleDateString() : 'Fecha desconocida';
                 
                 return `
                     <div class="group-card rounded-xl p-4 cursor-pointer" onclick="showGroupStudents('${code}')">
@@ -935,6 +995,7 @@
                             <h3 class="text-2xl font-bold gradient-text mb-2">${group.title}</h3>
                             <p class="text-gray-300">Código: ${code}</p>
                             <p class="text-gray-400 mt-2">${studentCount} estudiante${studentCount !== 1 ? 's' : ''}</p>
+                            <p class="text-gray-500 text-xs mt-1">Creado: ${createdDate}</p>
                             <div class="mt-3 flex justify-center space-x-2">
                                 <button class="text-xs px-3 py-1 rounded btn-edit" onclick="event.stopPropagation(); editGroup('${code}')">Editar</button>
                                 <button class="text-xs px-3 py-1 rounded btn-delete" onclick="event.stopPropagation(); requestDeleteGroup('${code}')">Eliminar</button>
@@ -1027,7 +1088,8 @@
             const newTitle = prompt('Nuevo título del grupo:', groups[code].title);
             if (newTitle && newTitle.trim() !== '') {
                 groups[code].title = newTitle.trim();
-                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                groups[code].updatedAt = new Date().toISOString();
+                saveGroupsToFirebase();
                 renderGroups();
                 updateScannerOptions();
             }
