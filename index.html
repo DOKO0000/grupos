@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Grupos Escolares</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@700&family=Teko:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Teko', sans-serif;
+            background-color: #1a0f24;
+            color: white;
+            overflow-x: hidden;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(90deg, #f094f8, #a369f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .group-card {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .group-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(240, 148, 248, 0.3);
+        }
+        
+        .student-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .student-card:hover {
+            transform: scale(1.02);
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .upload-area {
+            border: 3px dashed rgba(255, 255, 255, 0.3);
+            background-color: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .upload-area:hover, .upload-area.drag-over {
+            border-color: #f094f8;
+            background-color: rgba(240, 148, 248, 0.1);
+        }
+        
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+        
+        .modal-content {
+            background: linear-gradient(135deg, #1a0f24 0%, #2d1b69 100%);
+            border: 1px solid rgba(240, 148, 248, 0.3);
+            box-shadow: 0 0 30px rgba(240, 148, 248, 0.5);
+        }
+        
+        /* Botones con color de fondo */
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(240, 148, 248, 0.5);
+            transition: all 0.3s ease;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(240, 148, 248, 0.5);
+            background: rgba(240, 148, 248, 0.2);
+            border-color: rgba(240, 148, 248, 0.8);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(108, 117, 125, 0.5);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(108, 117, 125, 0.2);
+            border-color: rgba(108, 117, 125, 0.8);
+            box-shadow: 0 0 10px rgba(108, 117, 125, 0.4);
+        }
+        
+        .btn-edit {
+            background: rgba(255, 193, 7, 0.1);
+            border: 2px solid rgba(255, 193, 7, 0.5);
+            color: #ffc107;
+        }
+        
+        .btn-edit:hover {
+            background: rgba(255, 193, 7, 0.2);
+            border-color: rgba(255, 193, 7, 0.8);
+            box-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+            color: #ffc107;
+        }
+        
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #f094f8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .section-title {
+            border-left: 4px solid #f094f8;
+            padding-left: 12px;
+        }
+        
+        .create-group-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .create-group-content {
+            background: linear-gradient(135deg, #1a0f24 0%, #2d1b69 100%);
+            border: 1px solid rgba(240, 148, 248, 0.3);
+            box-shadow: 0 0 30px rgba(240, 148, 248, 0.5);
+            border-radius: 20px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background: linear-gradient(90deg, rgba(240, 148, 248, 0.7), rgba(163, 105, 247, 0.7));
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+            line-height: 20px;
+            font-size: 0.8rem;
+        }
+        
+        .option-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        
+        .option-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .option-item label {
+            font-size: 0.9rem;
+        }
+        
+        .ocr-options {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .create-group-btn {
+            width: 100%;
+            margin-top: 15px;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-5xl md:text-7xl font-bold mb-4 gradient-text">GESTIÓN DE GRUPOS</h1>
+            <p class="text-xl md:text-2xl text-gray-300">Organiza y visualiza estudiantes por grupos</p>
+        </header>
+        
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- Left Column: Group Display (Main Section) -->
+            <div class="lg:col-span-3">
+                <div class="group-card rounded-2xl p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-3xl font-bold gradient-text section-title">GRUPOS GUARDADOS</h2>
+                        <button id="createGroupBtnMain" class="px-4 py-2 rounded-lg text-lg font-bold btn-primary">
+                            + CREAR GRUPO
+                        </button>
+                    </div>
+                    
+                    <div id="groupsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Groups will be dynamically added here -->
+                        <div class="text-center py-10 text-gray-500 col-span-full" id="emptyGroupsMessage">
+                            No hay grupos guardados. Crea tu primer grupo.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Scanner -->
+            <div class="lg:col-span-1">
+                <!-- Upload Section -->
+                <div class="group-card rounded-2xl p-6">
+                    <h2 class="text-2xl font-bold mb-4 gradient-text section-title">ESCANEAR LISTA</h2>
+                    
+                    <div class="upload-area rounded-xl p-6 text-center cursor-pointer mb-4" id="uploadArea">
+                        <div class="text-3xl mb-2">📄</div>
+                        <h3 class="text-lg mb-2">Arrastra tu lista aquí</h3>
+                        <p class="text-gray-400 text-sm">o haz clic para seleccionar</p>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    
+                    <!-- Botón CREAR GRUPO debajo del área de carga -->
+                    <button id="createGroupBtnScanner" class="create-group-btn rounded-lg font-bold btn-primary">
+                        + CREAR GRUPO
+                    </button>
+                    
+                    <!-- OCR Options -->
+                    <div class="ocr-options">
+                        <h4 class="text-lg font-bold mb-3 gradient-text">⚙️ OPCIONES DE PROCESAMIENTO</h4>
+                        <div class="option-group">
+                            <div class="option-item">
+                                <input type="checkbox" id="preprocess-img" checked>
+                                <label for="preprocess-img">Preprocesar imagen</label>
+                            </div>
+                            <div class="option-item">
+                                <input type="checkbox" id="try-multiple-methods" checked>
+                                <label for="try-multiple-methods">Múltiples métodos</label>
+                            </div>
+                        </div>
+                        <div class="option-group">
+                            <div class="option-item">
+                                <input type="checkbox" id="use-table-detection" checked>
+                                <label for="use-table-detection">Detección de tabla</label>
+                            </div>
+                            <div class="option-item">
+                                <input type="checkbox" id="use-pattern-matching" checked>
+                                <label for="use-pattern-matching">Coincidencia de patrones</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="scannerOptions">
+                        <!-- Options will be dynamically added here -->
+                        <div class="text-center py-4 text-gray-400" id="noGroupsMessage">
+                            No hay grupos. Crea uno para continuar.
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress-container" id="progress-container">
+                        <div class="progress-bar" id="progress-bar">0%</div>
+                    </div>
+                    <p id="progress-status" class="text-center text-sm text-gray-400 mt-2"></p>
+                    
+                    <div class="mt-4 p-3 bg-black bg-opacity-20 rounded-lg">
+                        <p class="text-xs text-gray-400">
+                            <strong>Nota:</strong> Esta herramienta utiliza OCR (Tesseract.js) para extraer 
+                            matrículas y nombres de imágenes de listas escolares.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Student Modal -->
+    <div id="studentModal" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay hidden">
+        <div class="modal-content rounded-2xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="modalTitle" class="text-3xl font-bold gradient-text">ESTUDIANTES DEL GRUPO</h2>
+                <button id="closeModal" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div id="studentsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                <!-- Students will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Group Modal -->
+    <div id="createGroupModal" class="create-group-modal">
+        <div class="create-group-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold gradient-text">CREAR NUEVO GRUPO</h2>
+                <button id="closeCreateGroupModal" class="text-2xl text-gray-400 hover:text-white">&times;</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="groupCode" class="block text-lg mb-2">Código (3 dígitos)</label>
+                    <input type="text" id="groupCode" maxlength="3" placeholder="Ej: 506" 
+                           class="w-full px-4 py-3 rounded-lg bg-black bg-opacity-30 border border-gray-600 text-white focus:border-purple-500 focus:outline-none">
+                </div>
+                
+                <div>
+                    <label for="groupTitle" class="block text-lg mb-2">Título del Grupo</label>
+                    <input type="text" id="groupTitle" placeholder="Ej: 5to Semestre 2025" 
+                           class="w-full px-4 py-3 rounded-lg bg-black bg-opacity-30 border border-gray-600 text-white focus:border-purple-500 focus:outline-none">
+                </div>
+                
+                <div class="flex space-x-4 pt-2">
+                    <button id="confirmCreateGroup" class="flex-1 py-3 rounded-lg text-lg font-bold btn-primary">CREAR GRUPO</button>
+                    <button id="cancelCreateGroup" class="flex-1 py-3 rounded-lg text-lg font-bold btn-secondary">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Processing Overlay -->
+    <div id="processingOverlay" class="fixed inset-0 z-50 flex items-center justify-center modal-overlay hidden">
+        <div class="text-center">
+            <div class="spinner mb-4"></div>
+            <h3 class="text-2xl gradient-text font-bold">Procesando imagen...</h3>
+            <p style="color: #666; margin-top: 10px;">Esto puede tomar unos segundos</p>
+        </div>
+    </div>
+
+    <script>
+        // Estado de la aplicación
+        let groups = JSON.parse(localStorage.getItem('studentGroups')) || {};
+        let currentImageFile = null;
+        let selectedGroupCode = '';
+
+        // Elementos DOM
+        const groupCodeInput = document.getElementById('groupCode');
+        const groupTitleInput = document.getElementById('groupTitle');
+        const createGroupBtnMain = document.getElementById('createGroupBtnMain');
+        const createGroupBtnScanner = document.getElementById('createGroupBtnScanner');
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const scannerOptions = document.getElementById('scannerOptions');
+        const noGroupsMessage = document.getElementById('noGroupsMessage');
+        const groupsContainer = document.getElementById('groupsContainer');
+        const emptyGroupsMessage = document.getElementById('emptyGroupsMessage');
+        const studentModal = document.getElementById('studentModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const studentsContainer = document.getElementById('studentsContainer');
+        const closeModal = document.getElementById('closeModal');
+        const createGroupModal = document.getElementById('createGroupModal');
+        const closeCreateGroupModal = document.getElementById('closeCreateGroupModal');
+        const confirmCreateGroup = document.getElementById('confirmCreateGroup');
+        const cancelCreateGroup = document.getElementById('cancelCreateGroup');
+        const processingOverlay = document.getElementById('processingOverlay');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressStatus = document.getElementById('progress-status');
+
+        // Opciones de OCR
+        const preprocessImg = document.getElementById('preprocess-img');
+        const tryMultipleMethods = document.getElementById('try-multiple-methods');
+        const useTableDetection = document.getElementById('use-table-detection');
+        const usePatternMatching = document.getElementById('use-pattern-matching');
+
+        // Inicializar la aplicación
+        function init() {
+            renderGroups();
+            updateScannerOptions();
+            setupEventListeners();
+            
+            // Cargar datos de ejemplo si no hay grupos
+            if (Object.keys(groups).length === 0) {
+                loadSampleGroups();
+            }
+        }
+
+        // Cargar grupos de ejemplo
+        function loadSampleGroups() {
+            groups = {
+                '506': {
+                    title: '506 - 5to Semestre',
+                    students: []
+                },
+                '401': {
+                    title: '401 - 4to Semestre',
+                    students: []
+                },
+                '302': {
+                    title: '302 - 3er Semestre',
+                    students: []
+                }
+            };
+            
+            localStorage.setItem('studentGroups', JSON.stringify(groups));
+            renderGroups();
+            updateScannerOptions();
+        }
+
+        // Configurar event listeners
+        function setupEventListeners() {
+            // Crear grupo desde el botón principal
+            createGroupBtnMain.addEventListener('click', () => {
+                showCreateGroupModal();
+            });
+            
+            // Crear grupo desde el botón del escáner
+            createGroupBtnScanner.addEventListener('click', () => {
+                showCreateGroupModal();
+            });
+            
+            // Subir archivo
+            uploadArea.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // Drag and drop
+            ['dragenter', 'dragoover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.add('drag-over'), false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('drag-over'), false);
+            });
+            
+            uploadArea.addEventListener('drop', handleDrop, false);
+            
+            // Cerrar modales
+            closeModal.addEventListener('click', () => studentModal.classList.add('hidden'));
+            closeCreateGroupModal.addEventListener('click', () => createGroupModal.style.display = 'none');
+            cancelCreateGroup.addEventListener('click', () => createGroupModal.style.display = 'none');
+            
+            // Confirmar creación de grupo
+            confirmCreateGroup.addEventListener('click', createGroup);
+            
+            // Cerrar modal al hacer clic fuera
+            studentModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            createGroupModal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.style.display = 'none';
+                }
+            });
+            
+            // Permitir Enter para crear grupo
+            groupCodeInput.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') createGroup();
+            });
+            
+            groupTitleInput.addEventListener('keyup', function(e) {
+                if (e.key === 'Enter') createGroup();
+            });
+        }
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function handleDrop(e) {
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            handleFile(file);
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('Por favor, selecciona un archivo de imagen válido (PNG, JPG, JPEG).');
+                return;
+            }
+
+            currentImageFile = file;
+            
+            // Actualizar texto del área de carga
+            uploadArea.innerHTML = `
+                <div class="text-2xl mb-2">✅</div>
+                <h3 class="text-lg mb-2">Lista cargada</h3>
+                <p class="text-gray-400 text-sm">${file.name}</p>
+            `;
+            
+            // Actualizar opciones del escáner
+            updateScannerOptions();
+        }
+
+        // Mostrar modal de creación de grupo
+        function showCreateGroupModal() {
+            groupCodeInput.value = '';
+            groupTitleInput.value = '';
+            createGroupModal.style.display = 'flex';
+            groupCodeInput.focus();
+        }
+
+        // Crear un nuevo grupo
+        function createGroup() {
+            const code = groupCodeInput.value.trim();
+            const title = groupTitleInput.value.trim() || code;
+            
+            if (!code) {
+                alert('Por favor, ingresa un código de grupo.');
+                return;
+            }
+            
+            if (code.length !== 3 || !/^\d+$/.test(code)) {
+                alert('El código de grupo debe tener exactamente 3 dígitos.');
+                return;
+            }
+            
+            if (groups[code]) {
+                alert('Ya existe un grupo con este código.');
+                return;
+            }
+            
+            // Crear grupo
+            groups[code] = {
+                title: title,
+                students: []
+            };
+            
+            // Guardar en localStorage
+            localStorage.setItem('studentGroups', JSON.stringify(groups));
+            
+            // Actualizar UI
+            renderGroups();
+            updateScannerOptions();
+            
+            // Cerrar modal
+            createGroupModal.style.display = 'none';
+            
+            // Si hay una imagen cargada, seleccionar automáticamente el nuevo grupo
+            if (currentImageFile) {
+                selectedGroupCode = code;
+                updateScannerOptions();
+            }
+            
+            alert(`Grupo "${title}" creado exitosamente.`);
+        }
+
+        // Procesar imagen con OCR
+        function processImage() {
+            if (!currentImageFile || !selectedGroupCode) return;
+            
+            // Mostrar overlay de procesamiento
+            processingOverlay.classList.remove('hidden');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            progressStatus.textContent = 'Iniciando OCR...';
+            
+            // Configurar Tesseract.js para español
+            Tesseract.recognize(
+                currentImageFile,
+                'spa', // Idioma español
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const progress = Math.round(m.progress * 100);
+                            progressBar.style.width = `${progress}%`;
+                            progressBar.textContent = `${progress}%`;
+                            progressStatus.textContent = `Procesando: ${progress}%`;
+                        }
+                    }
+                }
+            ).then(({ data: { text } }) => {
+                // Procesar el texto extraído
+                const students = extractStudentsFromText(text);
+                
+                // Agregar estudiantes al grupo
+                groups[selectedGroupCode].students = students;
+                
+                // Guardar en localStorage
+                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                
+                // Actualizar UI
+                renderGroups();
+                
+                // Ocultar overlay
+                processingOverlay.classList.add('hidden');
+                progressContainer.style.display = 'none';
+                
+                // Mostrar mensaje de éxito
+                alert(`Se agregaron ${students.length} estudiantes al grupo "${groups[selectedGroupCode].title}".`);
+                
+                // Limpiar área de carga
+                uploadArea.innerHTML = `
+                    <div class="text-3xl mb-2">📄</div>
+                    <h3 class="text-lg mb-2">Arrastra tu lista aquí</h3>
+                    <p class="text-gray-400 text-sm">o haz clic para seleccionar</p>
+                `;
+                currentImageFile = null;
+                fileInput.value = '';
+                
+                // Actualizar opciones del escáner
+                updateScannerOptions();
+            }).catch(error => {
+                console.error('Error en OCR:', error);
+                alert('❌ Error al procesar la imagen. Intenta con una imagen más clara.');
+                processingOverlay.classList.add('hidden');
+                progressContainer.style.display = 'none';
+            });
+        }
+
+        // Función para extraer estudiantes del texto OCR
+        function extractStudentsFromText(text) {
+            let students = [];
+            
+            // Método 1: Detección de tabla (si está habilitado)
+            if (useTableDetection.checked) {
+                students = extractStudentsFromTable(text);
+                if (students.length > 0) {
+                    console.log("Método 1 (Tabla): Encontrados", students.length, "estudiantes");
+                    if (!tryMultipleMethods.checked) return students;
+                }
+            }
+            
+            // Método 2: Coincidencia de patrones (si está habilitado)
+            if (usePatternMatching.checked) {
+                const patternStudents = extractStudentsWithPatterns(text);
+                if (patternStudents.length > students.length) {
+                    students = patternStudents;
+                    console.log("Método 2 (Patrones): Encontrados", students.length, "estudiantes");
+                }
+            }
+            
+            // Método 3: Búsqueda por líneas
+            const lineStudents = extractStudentsByLines(text);
+            if (lineStudents.length > students.length) {
+                students = lineStudents;
+                console.log("Método 3 (Líneas): Encontrados", students.length, "estudiantes");
+            }
+            
+            return students;
+        }
+
+        function extractStudentsFromTable(text) {
+            const students = [];
+            const lines = text.split('\n');
+            
+            // Buscar la línea que contiene "Matricula" o "Matrícula" para identificar la tabla
+            let headerIndex = -1;
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].toLowerCase().includes('matric') || 
+                    (lines[i].includes('#') && lines[i].includes('Nombre'))) {
+                    headerIndex = i;
+                    break;
+                }
+            }
+            
+            // Si encontramos un encabezado, procesamos las siguientes líneas
+            if (headerIndex !== -1) {
+                for (let i = headerIndex + 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.length < 5) continue; // Saltar líneas muy cortas
+                    
+                    // Buscar matrícula (8 dígitos)
+                    const matriculaMatch = line.match(/\b\d{8}\b/);
+                    if (matriculaMatch) {
+                        const matricula = matriculaMatch[0];
+                        
+                        // Extraer nombre - buscar texto después de la matrícula
+                        const afterMatricula = line.substring(matriculaMatch.index + matricula.length);
+                        let nombre = extractNameFromText(afterMatricula);
+                        
+                        if (nombre.length >= 3) {
+                            students.push({
+                                matricula: matricula,
+                                nombre: nombre.toUpperCase()
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return students;
+        }
+
+        function extractStudentsWithPatterns(text) {
+            const students = [];
+            const lines = text.split('\n');
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Buscar patrones comunes en registros escolares
+                // Patrón 1: Número seguido de matrícula y nombre
+                const pattern1 = line.match(/(\d+)\s+(\d{8})\s+(.+)/);
+                if (pattern1) {
+                    const matricula = pattern1[2];
+                    let nombre = extractNameFromText(pattern1[3]);
+                    
+                    if (nombre.length >= 3) {
+                        students.push({
+                            matricula: matricula,
+                            nombre: nombre.toUpperCase()
+                        });
+                        continue;
+                    }
+                }
+                
+                // Patrón 2: Solo matrícula y nombre
+                const pattern2 = line.match(/(\d{8})\s+(.+)/);
+                if (pattern2) {
+                    const matricula = pattern2[1];
+                    let nombre = extractNameFromText(pattern2[2]);
+                    
+                    if (nombre.length >= 3) {
+                        students.push({
+                            matricula: matricula,
+                            nombre: nombre.toUpperCase()
+                        });
+                    }
+                }
+                
+                // Patrón 3: Buscar matrícula en cualquier parte de la línea
+                const matriculaMatch = line.match(/\b\d{8}\b/);
+                if (matriculaMatch) {
+                    const matricula = matriculaMatch[0];
+                    
+                    // Extraer nombre eliminando la matrícula y números/caracteres especiales
+                    let nombreLine = line.replace(matricula, '');
+                    let nombre = extractNameFromText(nombreLine);
+                    
+                    if (nombre.length >= 3) {
+                        students.push({
+                            matricula: matricula,
+                            nombre: nombre.toUpperCase()
+                        });
+                    }
+                }
+            }
+            
+            return students;
+        }
+
+        function extractStudentsByLines(text) {
+            const students = [];
+            const lines = text.split('\n');
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                
+                // Buscar matrícula (8 dígitos)
+                const matriculaMatch = line.match(/\b\d{8}\b/);
+                if (matriculaMatch) {
+                    const matricula = matriculaMatch[0];
+                    
+                    // Extraer nombre
+                    let nombreLine = line.substring(matriculaMatch.index + matricula.length).trim();
+                    let nombre = extractNameFromText(nombreLine);
+                    
+                    // Si el nombre es muy corto, intentar con la siguiente línea
+                    if (nombre.length < 10 && i + 1 < lines.length) {
+                        const nextLine = lines[i + 1].trim();
+                        const nextLineName = extractNameFromText(nextLine);
+                        if (nextLineName.length > nombre.length) {
+                            nombre = nextLineName;
+                            i++; // Saltar la siguiente línea
+                        }
+                    }
+                    
+                    if (nombre.length >= 3) {
+                        students.push({
+                            matricula: matricula,
+                            nombre: nombre.toUpperCase()
+                        });
+                    }
+                }
+            }
+            
+            return students;
+        }
+
+        function extractNameFromText(text) {
+            // Eliminar números, caracteres especiales y fechas
+            let cleanText = text
+                .replace(/\d+/g, ' ') // Eliminar números
+                .replace(/[^\w\sáéíóúÁÉÍÓÚñÑ]/g, ' ') // Eliminar caracteres especiales, mantener letras y espacios
+                .replace(/\s+/g, ' ') // Reemplazar múltiples espacios por uno solo
+                .trim();
+            
+            // Eliminar palabras comunes que no son nombres
+            const commonWords = ['asistencia', 'evaluación', 'registro', 'semestre', 'asignatura', 'profra', 'propra', 'colegio', 'bachilleres', 'estado', 'baja', 'california', 'diseño', 'gráfico'];
+            commonWords.forEach(word => {
+                const regex = new RegExp('\\b' + word + '\\b', 'gi');
+                cleanText = cleanText.replace(regex, '');
+            });
+            
+            return cleanText.replace(/\s+/g, ' ').trim();
+        }
+
+        // Renderizar grupos en la UI
+        function renderGroups() {
+            const groupCodes = Object.keys(groups);
+            
+            if (groupCodes.length === 0) {
+                emptyGroupsMessage.classList.remove('hidden');
+                groupsContainer.innerHTML = '';
+                groupsContainer.appendChild(emptyGroupsMessage);
+                return;
+            }
+            
+            emptyGroupsMessage.classList.add('hidden');
+            
+            groupsContainer.innerHTML = groupCodes.map(code => {
+                const group = groups[code];
+                const studentCount = group.students.length;
+                
+                return `
+                    <div class="group-card rounded-xl p-4 cursor-pointer" onclick="showGroupStudents('${code}')">
+                        <div class="text-center">
+                            <h3 class="text-2xl font-bold gradient-text mb-2">${group.title}</h3>
+                            <p class="text-gray-300">Código: ${code}</p>
+                            <p class="text-gray-400 mt-2">${studentCount} estudiante${studentCount !== 1 ? 's' : ''}</p>
+                            <div class="mt-3">
+                                <button class="text-xs px-3 py-1 rounded btn-edit" onclick="event.stopPropagation(); editGroup('${code}')">Editar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Actualizar opciones del escáner
+        function updateScannerOptions() {
+            const groupCodes = Object.keys(groups);
+            
+            if (groupCodes.length === 0) {
+                // No hay grupos - mostrar mensaje
+                scannerOptions.innerHTML = `
+                    <div class="text-center py-4">
+                        <p class="text-gray-400 mb-4">No hay grupos disponibles.</p>
+                    </div>
+                `;
+            } else {
+                // Hay grupos - mostrar selector y botón de procesar
+                scannerOptions.innerHTML = `
+                    <div class="mb-4">
+                        <label for="selectGroup" class="block text-lg mb-2">Seleccionar Grupo</label>
+                        <select id="selectGroup" class="w-full px-4 py-3 rounded-lg bg-black bg-opacity-30 border border-gray-600 text-white focus:border-purple-500 focus:outline-none">
+                            <option value="">-- Selecciona un grupo --</option>
+                            ${groupCodes.map(code => `
+                                <option value="${code}" ${selectedGroupCode === code ? 'selected' : ''}>${groups[code].title} (${code})</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <button id="processBtn" class="w-full py-3 rounded-lg text-lg font-bold btn-primary" ${!currentImageFile ? 'disabled' : ''}>
+                        <span>🔍</span> EXTRAER MATRÍCULAS
+                    </button>
+                `;
+                
+                // Configurar event listeners
+                const selectGroup = document.getElementById('selectGroup');
+                const processBtn = document.getElementById('processBtn');
+                
+                selectGroup.addEventListener('change', function() {
+                    selectedGroupCode = this.value;
+                    processBtn.disabled = !selectedGroupCode || !currentImageFile;
+                });
+                
+                processBtn.addEventListener('click', processImage);
+                
+                // Si hay una imagen cargada y un grupo seleccionado, habilitar el botón
+                if (currentImageFile && selectedGroupCode) {
+                    processBtn.disabled = false;
+                }
+            }
+        }
+
+        // Mostrar estudiantes de un grupo
+        function showGroupStudents(groupCode) {
+            const group = groups[groupCode];
+            
+            if (!group || group.students.length === 0) {
+                alert('Este grupo no tiene estudiantes.');
+                return;
+            }
+            
+            // Actualizar título del modal
+            modalTitle.textContent = `ESTUDIANTES - ${group.title}`;
+            
+            // Renderizar estudiantes
+            studentsContainer.innerHTML = group.students.map(student => {
+                const photoUrl = `https://apps-3.cobachbc.edu.mx/CompetenciasGenericas/Ajax/GetFotoCredencial?pMatricula=${student.matricula}`;
+                
+                return `
+                    <div class="student-card rounded-xl p-4 text-center">
+                        <img src="${photoUrl}" alt="Foto de ${student.nombre}" 
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+Tm8gSW1hZ2VuPC90ZXh0Pjwvc3ZnPg=='"
+                             class="w-24 h-24 rounded-full mx-auto mb-3 object-cover border-2 border-purple-500">
+                        <h4 class="font-bold text-lg">${student.matricula}</h4>
+                        <p class="text-gray-300 text-sm">${student.nombre}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            // Mostrar modal
+            studentModal.classList.remove('hidden');
+        }
+
+        // Editar grupo
+        function editGroup(code) {
+            const newTitle = prompt('Nuevo título del grupo:', groups[code].title);
+            if (newTitle && newTitle.trim() !== '') {
+                groups[code].title = newTitle.trim();
+                localStorage.setItem('studentGroups', JSON.stringify(groups));
+                renderGroups();
+                updateScannerOptions();
+            }
+        }
+
+        // Hacer las funciones globales para que funcionen en los onclick
+        window.showGroupStudents = showGroupStudents;
+        window.editGroup = editGroup;
+
+        // Inicializar la aplicación cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
